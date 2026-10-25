@@ -1,0 +1,81 @@
+{
+  "delivery_date": "2026-10-25",
+  "backend": {
+    "passed": 191,
+    "skipped": 3,
+    "skip_reason": "No isolated PostgreSQL test database configured",
+    "windows_ocr_enabled": true,
+    "warning": "Starlette TestClient upstream deprecation"
+  },
+  "security_regressions": {
+    "passed": 34,
+    "included_in_backend_total": true
+  },
+  "isolated_http_probe": {
+    "date": "2026-10-24",
+    "scope": "isolated localhost SQLite API; fictional inputs only",
+    "passed": 27,
+    "checks": [
+      "unauthenticated workspace access",
+      "oversized authentication body",
+      "compressed request denied",
+      "SQL-like login input rejected",
+      "fictional account registration",
+      "missing CSRF rejected",
+      "foreign origin rejected",
+      "owner workspace creation",
+      "malicious filename rejected",
+      "forged image rejected",
+      "financial AI reserved",
+      "fictional account registration",
+      "cross-workspace access denied /finance/accounts",
+      "cross-workspace access denied /receipts",
+      "cross-workspace access denied /imports",
+      "cross-workspace access denied /analysis/capabilities",
+      "cross-workspace write denied",
+      "logout",
+      "owner remains authorized",
+      "owner logout",
+      "revoked session replay denied",
+      "login budget attempt 1",
+      "login budget attempt 2",
+      "login budget attempt 3",
+      "login budget attempt 4",
+      "login budget attempt 5",
+      "login budget attempt 6"
+    ]
+  },
+  "frontend": {
+    "tests_passed": 20,
+    "typecheck": "passed",
+    "format": "passed",
+    "production_build": "passed"
+  },
+  "original_navigation_frontend": {
+    "tests_passed": 19,
+    "typecheck": "passed",
+    "format": "passed",
+    "production_build": "passed"
+  },
+  "dependency_audits": {
+    "date": "2026-10-24",
+    "npm_known_vulnerabilities": 0,
+    "pip_audit_production_packages": 39,
+    "pip_audit_known_vulnerabilities": 0
+  },
+  "bandit": {
+    "high": 0,
+    "medium": 3,
+    "low": 12,
+    "disposition": "Retained and reviewed individually in security-review.md"
+  },
+  "full_penetration_test": "not_completed",
+  "not_verified": [
+    "public deployment",
+    "Linux containers and image vulnerabilities",
+    "real browser security flows",
+    "real mobile devices",
+    "PostgreSQL in this release",
+    "live external API TLS/DNS integration"
+  ]
+}
