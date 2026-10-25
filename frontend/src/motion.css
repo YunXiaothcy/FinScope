@@ -1,0 +1,190 @@
+/* 页面根节点只淡入淡出，避免 transform 改变固定弹窗的定位参照。 */
+.page-enter-active {
+  transition: opacity 200ms var(--ease-out);
+}
+.page-leave-active {
+  transition: opacity 90ms ease-out;
+  pointer-events: none;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
+.panel,
+.hero-panel,
+.message-error,
+.message-success {
+  animation: surface-in var(--motion-normal) var(--ease-out);
+}
+.metric-card {
+  animation: card-in 320ms var(--ease-out) backwards;
+}
+.metric-card:nth-child(2) {
+  animation-delay: 35ms;
+}
+.metric-card:nth-child(3) {
+  animation-delay: 70ms;
+}
+.metric-card:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.primary-button,
+.secondary-button,
+.workspace-card,
+.question-card,
+.tab,
+.workspace-links a,
+.workspace-switch,
+.workspace-mobile-nav > *,
+.mobile-more a,
+.app-page header a,
+.app-page header button {
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--ease-out);
+}
+.field {
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+.ledger-row,
+.member-row,
+.import-row,
+.fact-card {
+  transition: background-color var(--motion-fast) ease;
+}
+
+/* Hover 位移只用于精细指针；触屏仅保留按下反馈。 */
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 18px #91ead014;
+  }
+  .secondary-button:hover:not(:disabled),
+  .question-card:hover:not(:disabled),
+  .workspace-card:hover:not(:disabled) {
+    border-color: #91ead055;
+    background-color: #91ead009;
+    transform: translateY(-1px);
+  }
+  .tab:hover:not(:disabled):not(.active),
+  .app-page
+    header
+    :is(nav, .page-actions)
+    > :is(a, button):hover:not(:disabled),
+  .mobile-more a:hover {
+    background-color: #ffffff06;
+    color: #d9eee6;
+  }
+  .ledger-row:hover,
+  .member-row:hover,
+  .import-row:hover,
+  .fact-card:hover {
+    background-color: #91ead004;
+  }
+}
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled),
+.question-card:active:not(:disabled),
+.workspace-card:active:not(:disabled),
+.workspace-mobile-nav > :active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.modal-backdrop {
+  animation: surface-in 180ms ease-out;
+}
+.modal-backdrop > .panel {
+  animation: dialog-in 240ms var(--ease-out);
+}
+.mobile-more {
+  animation: none;
+}
+.popover-enter-active,
+.popover-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms var(--ease-out);
+  transform-origin: bottom center;
+}
+.popover-leave-active {
+  pointer-events: none;
+}
+.popover-enter-from,
+.popover-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+details[open] > :not(summary) {
+  animation: surface-in 200ms ease-out;
+}
+.button-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: button-spin 800ms linear infinite;
+}
+
+@keyframes surface-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 包括 Vue 过渡、加载反馈及触摸按压；设置变化立即生效。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  .primary-button,
+  .secondary-button,
+  .workspace-card,
+  .question-card,
+  .workspace-mobile-nav > *,
+  .popover-enter-from,
+  .popover-leave-to {
+    transform: none !important;
+  }
+}

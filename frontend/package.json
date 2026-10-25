@@ -1,0 +1,34 @@
+{
+  "name": "finscope-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "format:check": "prettier --check src tests public/sw.js public/manifest.webmanifest vite.config.ts index.html",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "echarts": "^6.0.0",
+    "element-plus": "^2.11.0",
+    "pinia": "^3.0.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^24.19.2",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.1.0",
+    "typescript": "~5.9.0",
+    "vite": "^7.0.0",
+    "vue-tsc": "^3.1.0"
+  }
+}
