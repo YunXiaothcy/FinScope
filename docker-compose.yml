@@ -1,0 +1,161 @@
+name: finscope
+
+x-api: &api
+  image: finscope-api:${FINSCOPE_RELEASE:-local}
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  user: "${FINSCOPE_UID:-10001}:${FINSCOPE_GID:-10001}"
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  environment: &api-env
+    FINSCOPE_ENV: production
+    FINSCOPE_COOKIE_SECURE: "true"
+    FINSCOPE_ALLOWED_HOSTS: "${FINSCOPE_DOMAIN:?Generate private deployment settings first}"
+    FINSCOPE_ALLOWED_ORIGINS: "${FINSCOPE_PUBLIC_ORIGIN:?Exact HTTPS origin required}"
+    FINSCOPE_DATABASE_HOST: db
+    FINSCOPE_DATABASE_PORT: "5432"
+    FINSCOPE_DATABASE_NAME: "${FINSCOPE_DATABASE_NAME:-finscope}"
+    FINSCOPE_DATABASE_USER: finscope_app
+    FINSCOPE_DATABASE_PASSWORD_FILE: /run/secrets/app_password
+    FINSCOPE_OCR_PROVIDER: disabled
+
+services:
+  db:
+    image: postgres:18.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finscope_admin
+      POSTGRES_DB: "${FINSCOPE_DATABASE_NAME:-finscope}"
+      POSTGRES_PASSWORD_FILE: /run/secrets/admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
+    secrets: [admin_password]
+    volumes: [pgdata:/var/lib/postgresql]
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U finscope_admin -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    command: [postgres, -c, password_encryption=scram-sha-256, -c, log_statement=none, -c, log_min_error_statement=panic]
+    shm_size: 128m
+    mem_limit: 768m
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+    security_opt: [no-new-privileges:true]
+
+  provision:
+    <<: *api
+    command: [python, -m, deploy.provision]
+    restart: "no"
+    environment:
+      <<: *api-env
+      FINSCOPE_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    secrets: [app_password, admin_password]
+    networks: [database]
+    depends_on: {db: {condition: service_healthy}}
+
+  migrate:
+    <<: *api
+    command: [python, -m, alembic, upgrade, head]
+    restart: "no"
+    secrets: [app_password]
+    networks: [database]
+    depends_on: {provision: {condition: service_completed_successfully}}
+
+  api:
+    <<: *api
+    restart: unless-stopped
+    environment:
+      <<: *api-env
+      FINSCOPE_PROXY_ALLOW_IPS: "${FINSCOPE_PROXY_SUBNET:-172.30.80.0/24}"
+    secrets: [app_password]
+    networks: [database, application]
+    expose: ["8000"]
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 4
+      start_period: 20s
+    mem_limit: 768m
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+
+  web:
+    image: finscope-web:${FINSCOPE_RELEASE:-local}
+    build: {context: ., dockerfile: frontend/Dockerfile}
+    user: "${FINSCOPE_UID:-10001}:${FINSCOPE_GID:-10001}"
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["${FINSCOPE_BIND_ADDRESS:-127.0.0.1}:${FINSCOPE_HTTP_PORT:-80}:8080", "${FINSCOPE_BIND_ADDRESS:-127.0.0.1}:${FINSCOPE_HTTPS_PORT:-443}:8443"]
+    volumes: ["${FINSCOPE_DEPLOY_DIR:-./.local/deploy}/certs:/run/certs:ro"]
+    environment:
+      FINSCOPE_DOMAIN: "${FINSCOPE_DOMAIN}"
+      FINSCOPE_PUBLIC_ORIGIN: "${FINSCOPE_PUBLIC_ORIGIN}"
+      FINSCOPE_HTTP_LISTEN: "8080"
+      FINSCOPE_HTTPS_LISTEN: "8443"
+      FINSCOPE_HEALTH_LISTEN: 127.0.0.1:8081
+      FINSCOPE_UPSTREAM: api:8000
+      FINSCOPE_MIME_FILE: /etc/nginx/mime.types
+      FINSCOPE_WEB_ROOT: /usr/share/nginx/html
+      FINSCOPE_TLS_CERT: /run/certs/fullchain.pem
+      FINSCOPE_TLS_KEY: /run/certs/privkey.pem
+      FINSCOPE_NGINX_PID: /tmp/nginx.pid
+      FINSCOPE_NGINX_ERROR_LOG: /dev/stderr
+      FINSCOPE_NGINX_TEMP: /tmp/nginx
+    networks: [application, ingress]
+    depends_on: {api: {condition: service_healthy}}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8081/ready]
+      interval: 15s
+      timeout: 6s
+      retries: 4
+    mem_limit: 192m
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+
+  backup: &backup
+    profiles: [ops]
+    image: finscope-maintenance:${FINSCOPE_RELEASE:-local}
+    build: {context: ., dockerfile: infrastructure/maintenance/Dockerfile}
+    user: "${FINSCOPE_UID:-10001}:${FINSCOPE_GID:-10001}"
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    secrets: [app_password]
+    environment: &backup-env
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: "${FINSCOPE_DATABASE_NAME:-finscope}"
+      PGUSER: finscope_app
+      PGPASSWORD_FILE: /run/secrets/app_password
+    volumes: ["${FINSCOPE_DEPLOY_DIR:-./.local/deploy}/backups:/backups"]
+    networks: [database]
+    command: [backup, --directory, /backups]
+    depends_on: {db: {condition: service_healthy}}
+
+  restore:
+    <<: *backup
+    secrets: [app_password, admin_password]
+    environment:
+      <<: *backup-env
+      PGADMIN_USER: finscope_admin
+      PGADMIN_PASSWORD_FILE: /run/secrets/admin_password
+    command: [--help]
+
+secrets:
+  app_password: {file: "${FINSCOPE_DEPLOY_DIR:-./.local/deploy}/secrets/app_password"}
+  admin_password: {file: "${FINSCOPE_DEPLOY_DIR:-./.local/deploy}/secrets/admin_password"}
+volumes:
+  pgdata:
+networks:
+  database: {internal: true}
+  application:
+    internal: true
+    ipam: {config: [{subnet: "${FINSCOPE_PROXY_SUBNET:-172.30.80.0/24}"}]}
+  ingress:
