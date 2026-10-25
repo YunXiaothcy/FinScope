@@ -1,0 +1,1 @@
+"""FinScope backend application."""
