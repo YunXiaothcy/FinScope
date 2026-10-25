@@ -1,0 +1,101 @@
+worker_processes 1;
+pid "${FINSCOPE_NGINX_PID}";
+error_log "${FINSCOPE_NGINX_ERROR_LOG}" crit;
+events { worker_connections 1024; }
+http {
+    include "${FINSCOPE_MIME_FILE}";
+    default_type application/octet-stream;
+    server_tokens off;
+    access_log off;
+    client_max_body_size 6m;
+    client_header_timeout 15s;
+    client_body_timeout 15s;
+    send_timeout 30s;
+    keepalive_timeout 10s;
+    large_client_header_buffers 2 8k;
+    limit_conn_zone $binary_remote_addr zone=connections:10m;
+    limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
+    client_body_temp_path "${FINSCOPE_NGINX_TEMP}/client";
+    proxy_temp_path "${FINSCOPE_NGINX_TEMP}/proxy";
+    fastcgi_temp_path "${FINSCOPE_NGINX_TEMP}/fastcgi";
+    uwsgi_temp_path "${FINSCOPE_NGINX_TEMP}/uwsgi";
+    scgi_temp_path "${FINSCOPE_NGINX_TEMP}/scgi";
+    limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/m;
+    upstream finscope_api { server ${FINSCOPE_UPSTREAM}; keepalive 8; }
+
+    server { listen ${FINSCOPE_HTTP_LISTEN} default_server; server_name _; return 444; }
+    server {
+        listen ${FINSCOPE_HTTP_LISTEN};
+        server_name ${FINSCOPE_DOMAIN};
+        return 308 ${FINSCOPE_PUBLIC_ORIGIN}$request_uri;
+    }
+    server {
+        listen ${FINSCOPE_HTTPS_LISTEN} ssl default_server;
+        ssl_reject_handshake on;
+        server_name _;
+        return 444;
+    }
+    server {
+        listen ${FINSCOPE_HTTPS_LISTEN} ssl;
+        server_name ${FINSCOPE_DOMAIN};
+        ssl_certificate "${FINSCOPE_TLS_CERT}";
+        ssl_certificate_key "${FINSCOPE_TLS_KEY}";
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:TLS:10m;
+        ssl_session_timeout 1d;
+        ssl_session_tickets off;
+        root "${FINSCOPE_WEB_ROOT}";
+        index index.html;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        limit_conn connections 20;
+        limit_conn_status 429;
+        add_header X-Frame-Options DENY always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy no-referrer always;
+        add_header Permissions-Policy "camera=(self), microphone=(), geolocation=()" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" always;
+        add_header Cache-Control no-store always;
+        proxy_hide_header Cache-Control;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 45s;
+        proxy_send_timeout 45s;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_cache off;
+        location = /api { return 404; }
+        location ~ ^/api/v1/auth/(login|register|change-password)$ {
+            limit_req zone=auth burst=5 nodelay;
+            limit_req_status 429;
+            proxy_pass http://finscope_api;
+        }
+        location /api/ {
+            limit_req zone=api burst=40 nodelay;
+            limit_req_status 429;
+            proxy_pass http://finscope_api;
+        }
+        location = /manifest.webmanifest {
+            types { }
+            default_type application/manifest+json;
+            try_files $uri =404;
+        }
+        location = /sw.js { try_files $uri =404; }
+        location ~ /\. { return 404; }
+        location / { try_files $uri $uri/ /index.html; }
+    }
+    server {
+        listen ${FINSCOPE_HEALTH_LISTEN};
+        server_name _;
+        location = /ready {
+            proxy_set_header Host 127.0.0.1;
+            proxy_pass http://finscope_api/api/v1/ready;
+        }
+        location / { return 404; }
+    }
+}
+
